@@ -51,7 +51,7 @@ const BANNER_OPTIONS =
 	pkg         : PKG,
 	currentYear : (new Date()).getFullYear()
 };
-const OUTPUT_DIR = 'out';
+const OUTPUT_DIR = 'docs';
 
 // Default environment
 process.env.NODE_ENV = 'development';
