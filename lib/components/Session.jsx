@@ -6,7 +6,7 @@ import HangUpIcon from 'material-ui/svg-icons/communication/call-end';
 import PauseIcon from 'material-ui/svg-icons/av/pause-circle-outline';
 import ResumeIcon from 'material-ui/svg-icons/av/play-circle-outline';
 import classnames from 'classnames';
-import JsSIP from 'jssip';
+import qiyu from 'qiyuconnect';
 import Logger from '../Logger';
 import TransitionAppear from './TransitionAppear';
 
@@ -280,7 +280,7 @@ export default class Session extends React.Component
 		logger.debug('componentWillUnmount()');
 
 		this._mounted = false;
-		JsSIP.Utils.closeMediaStream(this._localClonedStream);
+		qiyu.Utils.closeMediaStream(this._localClonedStream);
 	}
 
 	handleHangUp()

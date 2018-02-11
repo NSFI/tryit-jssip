@@ -13,7 +13,7 @@
     "debug": "~3.1.0",
     "deepmerge": "^2.0.1",
     "domready": "^1.0.8",
-    "jssip": "^3.1.4",
+    "qiyuconnect": "git+https://github.com/NSFI/7uConnect.git",
     "material-ui": "^0.20.0",
     "prop-types": "^15.6.0",
     "random-string": "^0.2.0",

@@ -35,7 +35,7 @@ export default class Settings extends React.Component
 		return (
 			<TransitionAppear duration={250}>
 				<div data-component='Settings'>
-					<h1>JsSIP UA settings</h1>
+					<h1>QiyuConnect UA settings</h1>
 
 					<div className='item'>
 						<TextField
@@ -100,6 +100,16 @@ export default class Settings extends React.Component
 							floatingLabelFixed
 							fullWidth
 							onChange={this.handleChangeContactUri.bind(this)}
+						/>
+					</div>
+
+					<div className='item'>
+						<TextField
+							floatingLabelText='App ID'
+							value={settings.app_id || ''}
+							floatingLabelFixed
+							fullWidth
+							onChange={this.handleChangeAppID.bind(this)}
 						/>
 					</div>
 
@@ -260,6 +270,14 @@ export default class Settings extends React.Component
 		let settings = this.state.settings;
 
 		settings.contact_uri = event.target.value;
+		this.setState({ settings });
+	}
+
+	handleChangeAppID(event)
+	{
+		let settings = this.state.settings;
+
+		settings.app_id = event.target.value;
 		this.setState({ settings });
 	}
 

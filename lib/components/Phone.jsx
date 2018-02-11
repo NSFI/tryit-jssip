@@ -7,7 +7,7 @@ import IconMenu from 'material-ui/IconMenu';
 import MenuItem from 'material-ui/MenuItem';
 import IconButton from 'material-ui/IconButton/IconButton';
 import MoreVertIcon from 'material-ui/svg-icons/navigation/more-vert';
-import JsSIP from 'jssip';
+import qiyu from 'qiyuconnect';
 import UrlParse from 'url-parse';
 import Logger from '../Logger';
 import audioPlayer from '../audioPlayer';
@@ -37,8 +37,6 @@ export default class Phone extends React.Component
 
 		// Mounted flag
 		this._mounted = false;
-		// JsSIP.UA instance
-		this._ua = null;
 		// Site URL
 		this._u = new UrlParse(window.location.href, true);
 	}
@@ -128,25 +126,122 @@ export default class Phone extends React.Component
 		this._mounted = true;
 
 		let settings = this.props.settings;
-		let socket = new JsSIP.WebSocketInterface(settings.socket.uri);
+		let callback = (...args) => {
+			if(!this._mounted) return;
+			var type = args[0],
+				data = args[1];
+			switch (type) {
+				case 'connecting':
+					logger.debug('UA "connecting" event');
+					this.setState({
+						uri    : qiyu.ua.configuration.uri.toString(),
+						status : 'connecting'
+					});
+					break;
+				case 'connected':
+					logger.debug('UA "connected" event');
+					this.setState({ status: 'connected' });
+					break;
+				case 'disconnected':
+					logger.debug('UA "disconnected" event');
+					this.setState({ status: 'disconnected' });
+					break;
+				case 'registered':
+					logger.debug('UA "registered" event');
+					this.setState({ status: 'registered' });
+					break;
+				case 'unregistered':
+					logger.debug('UA "unregistered" event');
+					if (qiyu.ua.isConnected())
+						this.setState({ status: 'connected' });
+					else
+						this.setState({ status: 'disconnected' });
+					break;
+				case 'registrationFailed':
+					logger.debug('UA "registrationFailed" event');
+					if (qiyu.ua.isConnected())
+						this.setState({ status: 'connected' });
+					else
+						this.setState({ status: 'disconnected' });
+					this.props.onNotify(
+							{
+								level   : 'error',
+								title   : 'Registration failed',
+								message : data.cause
+							});
+					break;
+				case 'newRTCSession': {
+					if (data.originator === 'local')
+						return;
+					logger.debug('UA "newRTCSession" event');
+					let state = this.state;
+					let session = data.session;
 
-		if (settings.socket.via_transport !== 'auto')
-			socket.via_transport = settings.socket.via_transport;
+					// Avoid if busy or other incoming
+					if (state.session || state.incomingSession) {
+						logger.debug('incoming call replied with 486 "Busy Here"');
+
+						session.terminate(
+							{
+								status_code   : 486,
+								reason_phrase : 'Busy Here'
+							});
+
+						return;
+					}
+
+					audioPlayer.play('ringing');
+					this.setState({ incomingSession: session });
+
+					session.on('failed', () =>
+					{
+						audioPlayer.stop('ringing');
+						this.setState(
+							{
+								session         : null,
+								incomingSession : null
+							});
+					});
+					session.on('ended', () =>
+					{
+						this.setState(
+							{
+								session         : null,
+								incomingSession : null
+							});
+					});
+					session.on('accepted', () =>
+					{
+						audioPlayer.stop('ringing');
+						this.setState(
+							{
+								session         : session,
+								incomingSession : null
+							});
+					});
+					break;
+				}
+
+			}
+		};
 
 		try
 		{
-			this._ua = new JsSIP.UA(
-				{
-					uri                 : settings.uri,
-					password            : settings.password,
-					display_name        : settings.display_name,
-					sockets             : [ socket ],
-					registrar_server    : settings.registrar_server,
-					contact_uri         : settings.contact_uri,
-					authorization_user  : settings.authorization_user,
-					instance_id         : settings.instance_id,
-					session_timers      : settings.session_timers,
-					use_preloaded_route : settings.use_preloaded_route
+			qiyu.login({
+					url: settings.socket.uri,
+					ua: {
+						uri                 : settings.uri,
+						password            : settings.password,
+						display_name        : settings.display_name,
+						registrar_server    : settings.registrar_server,
+						contact_uri         : settings.contact_uri,
+						authorization_user  : settings.authorization_user,
+						instance_id         : settings.instance_id,
+						session_timers      : settings.session_timers,
+						use_preloaded_route : settings.use_preloaded_route
+					},
+					callback: callback,
+					extraHeaders: ['App-ID: '+ settings.app_id]
 				});
 		}
 		catch (error)
@@ -162,151 +257,12 @@ export default class Phone extends React.Component
 			return;
 		}
 
-
-		this._ua.on('connecting', () =>
-		{
-			if (!this._mounted)
-				return;
-
-			logger.debug('UA "connecting" event');
-
-			this.setState(
-				{
-					uri    : this._ua.configuration.uri.toString(),
-					status : 'connecting'
-				});
-		});
-
-		this._ua.on('connected', () =>
-		{
-			if (!this._mounted)
-				return;
-
-			logger.debug('UA "connected" event');
-
-			this.setState({ status: 'connected' });
-		});
-
-		this._ua.on('disconnected', () =>
-		{
-			if (!this._mounted)
-				return;
-
-			logger.debug('UA "disconnected" event');
-
-			this.setState({ status: 'disconnected' });
-		});
-
-		this._ua.on('registered', () =>
-		{
-			if (!this._mounted)
-				return;
-
-			logger.debug('UA "registered" event');
-
-			this.setState({ status: 'registered' });
-		});
-
-		this._ua.on('unregistered', () =>
-		{
-			if (!this._mounted)
-				return;
-
-			logger.debug('UA "unregistered" event');
-
-			if (this._ua.isConnected())
-				this.setState({ status: 'connected' });
-			else
-				this.setState({ status: 'disconnected' });
-		});
-
-		this._ua.on('registrationFailed', (data) =>
-		{
-			if (!this._mounted)
-				return;
-
-			logger.debug('UA "registrationFailed" event');
-
-			if (this._ua.isConnected())
-				this.setState({ status: 'connected' });
-			else
-				this.setState({ status: 'disconnected' });
-
-			this.props.onNotify(
-				{
-					level   : 'error',
-					title   : 'Registration failed',
-					message : data.cause
-				});
-		});
-
-		this._ua.on('newRTCSession', (data) =>
-		{
-			if (!this._mounted)
-				return;
-
-			if (data.originator === 'local')
-				return;
-
-			logger.debug('UA "newRTCSession" event');
-
-			let state = this.state;
-			let session = data.session;
-
-			// Avoid if busy or other incoming
-			if (state.session || state.incomingSession) {
-				logger.debug('incoming call replied with 486 "Busy Here"');
-
-				session.terminate(
-					{
-						status_code   : 486,
-						reason_phrase : 'Busy Here'
-					});
-
-				return;
-			}
-
-			audioPlayer.play('ringing');
-			this.setState({ incomingSession: session });
-
-			session.on('failed', () =>
-			{
-				audioPlayer.stop('ringing');
-				this.setState(
-					{
-						session         : null,
-						incomingSession : null
-					});
-			});
-
-			session.on('ended', () =>
-			{
-				this.setState(
-					{
-						session         : null,
-						incomingSession : null
-					});
-			});
-
-			session.on('accepted', () =>
-			{
-				audioPlayer.stop('ringing');
-				this.setState(
-					{
-						session         : session,
-						incomingSession : null
-					});
-			});
-		});
-
-		this._ua.start();
-
 		// Set callstats stuff
 		if (settings.callstats.enabled)
 		{
 			callstatsjssip(
 				// JsSIP.UA instance
-				this._ua,
+				qiyu.ua,
 				// AppID
 				settings.callstats.AppID,
 				// AppSecret
@@ -314,6 +270,7 @@ export default class Phone extends React.Component
 				settings.callstats.AppSecret
 			);
 		}
+
 	}
 
 	componentWillUnmount()
@@ -343,7 +300,7 @@ export default class Phone extends React.Component
 	{
 		logger.debug('handleMenuExit()');
 
-		this._ua.stop();
+		qiyu.ua.stop();
 		this.props.onExit();
 	}
 
@@ -351,7 +308,7 @@ export default class Phone extends React.Component
 	{
 		logger.debug('handleOutgoingCall() [uri:"%s"]', uri);
 
-		let session = this._ua.call(uri,
+		let session = qiyu.ua.call(uri,
 			{
 				pcConfig : this.props.settings.pcConfig || { iceServers: [] },
 				mediaConstraints :
@@ -406,11 +363,7 @@ export default class Phone extends React.Component
 	handleAnswerIncoming()
 	{
 		logger.debug('handleAnswerIncoming()');
-
-		let session = this.state.incomingSession;
-
-		session.answer(
-			{
+		qiyu.answer(this.state.incomingSession, {
 				pcConfig : this.props.settings.pcConfig || { iceServers: [] }
 			});
 	}
@@ -418,10 +371,7 @@ export default class Phone extends React.Component
 	handleRejectIncoming()
 	{
 		logger.debug('handleRejectIncoming()');
-
-		let session = this.state.incomingSession;
-
-		session.terminate();
+		qiyu.bye(this.state.session);
 	}
 }
 
