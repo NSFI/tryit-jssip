@@ -51,7 +51,7 @@ const BANNER_OPTIONS =
 	pkg         : PKG,
 	currentYear : (new Date()).getFullYear()
 };
-const OUTPUT_DIR = 'gh-pages';
+const OUTPUT_DIR = 'out';
 
 // Default environment
 process.env.NODE_ENV = 'development';
@@ -315,7 +315,7 @@ gulp.task('openbrowser', (done) =>
 			{
 				baseDir : OUTPUT_DIR
 			},
-			https     : true,
+			https     : false,
 			ghostMode : false,
 			files     : path.join(OUTPUT_DIR, '**', '*')
 		});
