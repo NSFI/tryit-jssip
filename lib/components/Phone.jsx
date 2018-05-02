@@ -371,7 +371,7 @@ export default class Phone extends React.Component
 	handleRejectIncoming()
 	{
 		logger.debug('handleRejectIncoming()');
-		qiyu.bye(this.state.session);
+		qiyu.bye(this.state.incomingSession);
 	}
 }
 
